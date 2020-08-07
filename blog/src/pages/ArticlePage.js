@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import articleContent from './article-content';
 import CommentsList from '../components/CommentsList';
 import ArticlesList from '../components/ArticlesList';
+import UpvotesSection from '../components/UpvotesSection';
+import AddCommentForm from '../components/AddCommentForm';
 import NotFoundPage from './NotFoundPage';
 
 const ArticlePage = ({ match }) => {
@@ -15,10 +17,11 @@ const ArticlePage = ({ match }) => {
         const fetchData = async () => {
             const result = await fetch(`/api/articles/${name}`);
             const body = await result.json();
+            console.log(body)
             setArticleInfo(body)
         }
         fetchData();
-        setArticleInfo({ upvotes: Math.ceil(Math.random() * 10) })
+        // setArticleInfo({ upvotes: Math.ceil(Math.random() * 10) })
     }, [name])
 
     if(!article) return <NotFoundPage />
@@ -27,12 +30,13 @@ const ArticlePage = ({ match }) => {
 
     return (
         <>
-            <h1>{article.title}</h1>
-            <p>This post has been upvoted {articleInfo.upvotes} times!</p>
+            <h1>{article.title}</h1> 
+            <UpvotesSection articleName={name} upvotes={articleInfo.upvotes} setArticleInfo={setArticleInfo} />        
             {article.content.map((paragraph, key) => (
                 <p key = {key}>{paragraph}</p>
             ))}
             <CommentsList comments={articleInfo.comments} />
+            <AddCommentForm articleName = {name} setArticleInfo={setArticleInfo}/>
             <h3>Other Articles: </h3>
             <ArticlesList articles={otherArticles}/>
         </>

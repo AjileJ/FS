@@ -1,31 +1,75 @@
 import express from 'express';
 import bodyParser from 'body-parser';
+import { MongoClient } from 'mongodb';
+import path from 'path';
 
-const articlesInfo = {
-    'learn-react': {
-        upvotes: 0,
-    },
-    'learn-node': {
-        upvotes: 0,
-    },
-    'my-thoughts-on-resumes': {
-        upvotes: 0,
-    },
-}
+
 
 
 const app = express();
 
-const PORT = 8000 
 
-app.use(bodyParser.json())
+const PORT = 8002; 
+
+app.use(express.static(path.join(__dirname, '/build')));
+app.use(bodyParser.json());
 
 
-app.post('/api/articles/:name/upvotes', (req, res) => {
+const withDB = async (operations, res) => {
+    try {
+        const client = await MongoClient.connect('mongodb://localhost:27017', { useNewUrlParser: true })
+        const db = client.db('blog');
+        
+        await operations(db)
+        
+        client.close();
+    }catch(error) {
+        res.status(500).json({ message: 'Error connecting to db', error });
+    }
+}
+
+
+app.get('/api/articles/:name', async (req, res) => {
+        withDB(async (db) => {
+            const articleName = req.params.name;
+            const articleInfo = await db.collection('articles').findOne({ name: articleName })
+            res.status(200).json(articleInfo);
+        }, res);
+});
+
+app.post('/api/articles/:name/upvotes', async (req, res) => {
+        withDB(async (db) => {
+            const articleName = req.params.name;
+            const articleInfo = await db.collection('articles').findOne({ name: articleName })
+            await db.collection('articles').updateOne({ name: articleName }, {
+                '$set': {
+                    upvotes: articleInfo.upvotes + 1,
+                },
+            });
+            const updatedArticleInfo = await db.collection('articles').findOne({ name: articleName })
+            res.status(200).json(updatedArticleInfo);
+            }, res);  
+});
+
+app.post('/api/articles/:name/add-comment', (req,res) => {
+    const {username, text} = req.body;
     const articleName = req.params.name;
 
-    articlesInfo[articleName].upvotes += 1;
-    res.status(200).send(`${articleName} now has ${articlesInfo[articleName].upvotes} upvotes!`)
-})
+    withDB(async (db) => {
+        const articleInfo = await db.collection('articles').findOne({ name: articleName });
+        await db.collection('articles').updateOne({ name: articleName }, {
+            '$set': {
+                comments: articleInfo.comments.concat({ username, text })
+            },
+        });
+        const updatedArticleInfo = await db.collection('articles').findOne({ name: articleName })
 
-app.listen(PORT, () => console.log(`~~* Listening on port: ${PORT} *~~`))
+        res.status(200).json(updatedArticleInfo);
+    }, res)
+});
+
+app.get('*', (req,res) => {
+    res.sendFile(path.join(__dirname + '/build/index.html'));
+});
+
+app.listen(PORT, () => console.log(`~~* Listening on port: ${PORT} *~~`));
